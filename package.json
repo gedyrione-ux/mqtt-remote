@@ -1,0 +1,26 @@
+{
+  "name": "mqtt-remote",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.2.0",
+    "@ymjacky/mqtt5": "npm:@jsr/ymjacky__mqtt5@^0.0.22",
+    "axios": "^1.6.7",
+    "mqtt": "^5.0.0",
+    "pinia": "^2.3.1",
+    "process": "^0.11.10",
+    "vue": "^3.5.25",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.2",
+    "vite": "^7.3.1",
+    "vite-plugin-node-polyfills": "^0.25.0"
+  }
+}
