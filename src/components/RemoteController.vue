@@ -1,13 +1,11 @@
 <template>
   <div class="panel">
-    <!-- 第一行：设备列表按钮 + 标题 -->
     <div class="header-row">
       <button @click="goBackToDevices" class="back-button">⬅️ 设备列表</button>
       <h2>{{ isMultiDevice ? '📡 多设备遥控器' : '📡 4G 设备遥控器' }}</h2>
       <div class="header-right"></div>
     </div>
 
-    <!-- 单设备界面（只有一个设备时） -->
     <template v-if="!isMultiDevice && currentSingleDevice">
       <div class="status-bar">
         <div class="left-placeholder"></div>
@@ -50,7 +48,6 @@
       </div>
     </template>
 
-    <!-- 多设备界面（两个及以上设备时） -->
     <template v-else-if="isMultiDevice">
       <div class="multi-connect-bar">
         <button @click="toggleConnection" :disabled="connecting">
@@ -114,7 +111,6 @@ import { ref, computed, onMounted, onUnmounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMqtt } from '../composables/useMqtt'
 import { useUserStore } from '../stores/user'
-
 
 const router = useRouter()
 const route = useRoute()
@@ -229,9 +225,6 @@ const initMqtt = () => {
     onMessage: handleDeviceMessage,
     onConnect: () => {
       console.log('🔥🔥🔥 RemoteController: onConnect 触发');
-      console.log('📊 devices.value:', devices.value);
-      console.log('📊 devices.value.length:', devices.value.length);
-      console.log('📊 currentSingleDevice.value:', currentSingleDevice.value);
       addMessage('✅ MQTT服务器连接成功')
       
       if (isMultiDevice.value) {
@@ -289,34 +282,37 @@ const goBackToDevices = () => {
   router.push('/devices')
 }
 
-// 多设备发送查询指令（统一主题）
+// 💥 【核心修改 1】多设备发送查询指令（交由 Python 总路由处理）
 const sendQueryMulti = () => {
   console.log('📤 sendQueryMulti 被调用');
   const modelCode = 0x44
-  const devCode = 0x02
+  const placeholder = 0x00 // 占位符，将被 Python 替换为真实地址码
   const keyCode = 'A'.charCodeAt(0)
   const para = 0x00
   const term = 0x0D
-  const commandBytes = new Uint8Array([modelCode, devCode, keyCode, para, term])
+  const commandBytes = new Uint8Array([modelCode, placeholder, keyCode, para, term])
 
-  // 将字节数组转换为 Base64 字符串
+  // 转换为 Base64
   let binaryString = ''
   for (let i = 0; i < commandBytes.length; i++) {
     binaryString += String.fromCharCode(commandBytes[i])
   }
   const cmdBase64 = btoa(binaryString)
 
-  // 构造 JSON payload，包含所有设备 ID 和 Base64 指令
+  // 构造纯粹、干净的 JSON payload 发给 Python
   const payload = {
-    targets: devices.value.map(dev => dev.device_id),
-    cmd: cmdBase64
+    targets: devices.value.map(dev => ({
+      id: dev.device_id,
+      device_code: dev.device_code || 2
+    })),
+    cmd_template: cmdBase64
   }
 
-  console.log('📤 发送查询指令到统一主题:', MULTI_PUBLISH_TOPIC, 'payload:', payload)
+  console.log('📤 发送查询指令到总路由:', MULTI_PUBLISH_TOPIC, 'payload:', payload)
   publish(MULTI_PUBLISH_TOPIC, JSON.stringify(payload))
 }
 
-// 单设备发送查询指令（使用设备自己的发布主题）
+// 单设备发送查询指令（直接发给设备，不经过 Python 路由）
 const sendQueryToDevice = (device) => {
   console.log('📤 sendQueryToDevice 被调用，设备:', device.device_id);
   const modelCode = 0x44
@@ -383,19 +379,20 @@ const toggleConnection = () => {
   }
 }
 
+// 💥 【核心修改 2】多设备/单设备 控制指令发送
 const sendCommand = (key) => {
   if (!localConnected.value) {
     addMessage('❌ 请先连接')
     return
   }
 
-  // 1. 构造原始指令字节（地址码统一为 0x02）
+  // 1. 构造原始指令字节（模板地址码用 0x00 占位）
   const modelCode = 0x44
-  const devCode = 0x02
+  const placeholder = 0x00 // 占位符，将被 Python 替换为真实地址码
   const keyCode = key.charCodeAt(0)
   const para = 0x00
   const term = 0x0D
-  const commandBytes = new Uint8Array([modelCode, devCode, keyCode, para, term])
+  const commandBytes = new Uint8Array([modelCode, placeholder, keyCode, para, term])
 
   // 2. 将字节数组转换为 Base64 字符串
   let binaryString = ''
@@ -404,13 +401,16 @@ const sendCommand = (key) => {
   }
   const cmdBase64 = btoa(binaryString)
 
-  // 3. 构造 JSON payload，包含设备 ID 列表和 Base64 指令
+  // 3. 构造极简的 JSON payload 给 Python
   const payload = {
-    targets: devices.value.map(dev => dev.device_id),
-    cmd: cmdBase64
+    targets: devices.value.map(dev => ({
+      id: dev.device_id,
+      device_code: dev.device_code || 2
+    })),
+    cmd_template: cmdBase64
   }
 
-  console.log('📤 发送指令到统一主题:', MULTI_PUBLISH_TOPIC, 'payload:', payload)
+  console.log('📤 发送指令到总路由:', MULTI_PUBLISH_TOPIC, 'payload:', payload)
   publish(MULTI_PUBLISH_TOPIC, JSON.stringify(payload))
 }
 
@@ -514,8 +514,6 @@ onMounted(async () => {
   const ok = await ensureDevices()
   if (!ok) return
   initMqtt()
-  // 如果需要自动连接，可取消注释下一行
-  // toggleConnection()
 
   if (typeof window !== 'undefined') {
     window._debug = {

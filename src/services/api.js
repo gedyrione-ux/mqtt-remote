@@ -44,7 +44,14 @@ export const userApi = {
   createDevice: (data) => api.post('/admin/devices', data),
   updateDevice: (deviceId, data) => api.put(`/admin/devices/${deviceId}`, data),
   deleteDevice: (deviceId) => api.delete(`/admin/devices/${deviceId}`),
-  getAllDevices: (userId) => api.get('/admin/devices', { params: { user_id: userId } })
+  getAllDevices: (userId) => api.get('/admin/devices', { params: { user_id: userId } }),
+  getAdminDevices: () => api.get('/admin/devices'),
+  createAdminDevice: (data) => api.post('/admin/devices', data),
+  updateAdminDevice: (deviceId, data) => api.put(`/admin/devices/${deviceId}`, data),
+  deleteAdminDevice: (deviceId) => api.delete(`/admin/devices/${deviceId}`),
+  getAdminUsers: () => api.get('/admin/users'),
+  createAdminUser: (data) => api.post('/admin/users', data),
+  deleteAdminUser: (userId) => api.delete(`/admin/users/${userId}`)
 }
 
 export default api
